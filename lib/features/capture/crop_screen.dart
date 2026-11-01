@@ -308,26 +308,29 @@ class _CropScreenState extends State<CropScreen> {
     final imageArea = _imageArea;
     if (selection == null || imageArea == null) return;
 
-    // Prefer the true pointer-down position: pan recognisers only report the
-    // start after the touch slop has been consumed.
-    final start = _panDownPosition ?? localPosition;
+    // Prefer the true pointer-down position for hit testing and for the anchor
+    // of a brand-new rectangle: pan recognisers only report the start after
+    // the touch slop has been consumed. An existing corner is dragged from the
+    // recognised position instead, so it does not jump by the slop.
+    final down = _panDownPosition ?? localPosition;
     final offset = _imageOffset;
 
-    _dragStart = start;
-    _activeHandle = _hitTest(start, selection.shift(offset));
+    _activeHandle = _hitTest(down, selection.shift(offset));
 
     if (_activeHandle == null) {
       _creating = true;
+      _dragStart = down;
       _selectionBeforeCreate = selection;
       setState(() {
         _selection = clampSelection(
-          rectFromPoints(start, start).shift(-offset),
+          rectFromPoints(down, down).shift(-offset),
           imageArea,
           minSize: 0,
         );
       });
     } else {
       _creating = false;
+      _dragStart = localPosition;
       _dragStartSelection = selection;
     }
   }
