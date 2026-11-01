@@ -358,7 +358,8 @@ void main() {
     await _pumpUntil(tester, () => _useEnabled(tester));
 
     await tester.tap(find.text('Use'));
-    await _pumpUntil(tester, () => find.text('Hello').evaluate().isNotEmpty);
+    // The transcription is shown first; the translation is one tap away.
+    await _pumpUntil(tester, () => find.text('こんにちは').evaluate().isNotEmpty);
     // Let the modal sheet finish sliding in before tapping its actions.
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -372,9 +373,14 @@ void main() {
     expect(clipboardCalls, hasLength(1));
     expect(
       (clipboardCalls.single.arguments as Map<String, dynamic>)['text'],
-      'Hello',
+      'こんにちは',
     );
     expect(find.text('Copied'), findsOneWidget);
+    expect(find.text('こんにちは'), findsOneWidget);
+
+    // Toggling shows the translation without leaving the sheet.
+    await tester.tap(find.text('Translation'));
+    await tester.pump();
     expect(find.text('Hello'), findsOneWidget);
   });
 }

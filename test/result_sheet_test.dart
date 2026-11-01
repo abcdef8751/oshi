@@ -45,7 +45,7 @@ void main() {
 
     expect(translator.analyzeCalls, 0);
     expect(translator.translateCalls, 0);
-    expect(_shownText(tester), 'Hello world');
+    expect(_shownText(tester), 'Hola mundo');
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -80,13 +80,13 @@ void main() {
       expect(translator.analyzeCalls, 1);
       expect(translator.analyzeTargetCodes.single, 'en');
       expect(translator.lastPng, Uint8List.fromList(<int>[1, 2, 3]));
-      expect(_shownText(tester), 'Hello world');
+      expect(_shownText(tester), 'Hola mundo');
       expect(reported, same(_result));
       expect(find.byType(CircularProgressIndicator), findsNothing);
     },
   );
 
-  testWidgets('toggle flips between the translation and the original', (
+  testWidgets('the transcription is shown first, then the translation', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -100,12 +100,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(_shownText(tester), 'Hello world');
-    expect(find.text('Original'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
-    await tester.pump();
-
     expect(_shownText(tester), 'Hola mundo');
     expect(find.text('Translation'), findsOneWidget);
 
@@ -114,6 +108,12 @@ void main() {
 
     expect(_shownText(tester), 'Hello world');
     expect(find.text('Original'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
+    await tester.pump();
+
+    expect(_shownText(tester), 'Hola mundo');
+    expect(find.text('Translation'), findsOneWidget);
   });
 
   testWidgets('toggle is absent when the translation equals the original', (
@@ -172,7 +172,7 @@ void main() {
       expect(calls, hasLength(1));
       expect(
         (calls.single.arguments as Map<String, dynamic>)['text'],
-        'Hello world',
+        'Hola mundo',
       );
 
       await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
@@ -183,7 +183,7 @@ void main() {
       expect(calls, hasLength(2));
       expect(
         (calls.last.arguments as Map<String, dynamic>)['text'],
-        'Hola mundo',
+        'Hello world',
       );
       expect(find.byType(ResultSheet), findsOneWidget);
     },
@@ -232,7 +232,7 @@ void main() {
 
     expect(translator.analyzeCalls, 2);
     expect(find.text('No connection'), findsNothing);
-    expect(_shownText(tester), 'Hello world');
+    expect(_shownText(tester), 'Hola mundo');
   });
 
   testWidgets('target change retranslates once and caches by language', (
@@ -260,6 +260,10 @@ void main() {
     expect(translator.translateCalls, 1);
     expect(translator.translateTargetCodes.single, 'ja');
     expect(translator.translateTexts.single, 'Hola mundo');
+    expect(_shownText(tester), 'Hola mundo');
+
+    await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
+    await tester.pump();
     expect(_shownText(tester), '[ja] Hola mundo');
 
     // Back to the cached English translation: no second network call.
@@ -287,20 +291,21 @@ void main() {
     );
     await tester.pump();
 
+    // Start on the translation variant.
     await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
     await tester.pump();
-    expect(_shownText(tester), 'Hola mundo');
+    expect(_shownText(tester), 'Hello world');
 
     target.value = kLanguages[1];
     await tester.pumpAndSettle();
 
-    // Still showing the original variant after the retranslation lands.
-    expect(_shownText(tester), 'Hola mundo');
+    // Still showing the translation variant after the retranslation lands.
+    expect(_shownText(tester), '[ja] Hola mundo');
     expect(translator.translateCalls, 1);
 
     await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
     await tester.pump();
-    expect(_shownText(tester), '[ja] Hola mundo');
+    expect(_shownText(tester), 'Hola mundo');
   });
 
   testWidgets(
@@ -327,12 +332,14 @@ void main() {
       await tester.pump();
 
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
-      expect(_shownText(tester), 'Hello world');
+      expect(_shownText(tester), 'Hola mundo');
 
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pumpAndSettle();
 
       expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
+      await tester.pump();
       expect(_shownText(tester), '[ja] Hola mundo');
     },
   );
@@ -367,7 +374,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Gemini is having trouble'), findsOneWidget);
-    expect(_shownText(tester), 'Hello world');
+    expect(_shownText(tester), 'Hola mundo');
 
     translator.translateError = null;
     translator.translateHandler = (text, code) => '[$code] $text';
@@ -381,6 +388,8 @@ void main() {
       find.byKey(const ValueKey<String>('result-retranslate-error')),
       findsNothing,
     );
+    await tester.tap(find.byKey(const ValueKey<String>('result-toggle')));
+    await tester.pump();
     expect(_shownText(tester), '[ja] Hola mundo');
   });
 
@@ -417,7 +426,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ResultSheet), findsOneWidget);
-    expect(_shownText(tester), 'Hello world');
+    expect(_shownText(tester), 'Hola mundo');
     expect(translator.analyzeCalls, 0);
   });
 }

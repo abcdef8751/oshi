@@ -92,9 +92,10 @@ class _ResultSheetState extends State<ResultSheet> {
   bool _busy = false;
   TranslatorException? _retranslateError;
 
-  /// Which variant the body, copy and toggle act on. The app is a translation
-  /// app, so the translation is shown first.
-  bool _showingTranslation = true;
+  /// Which variant the body, copy and toggle act on. The transcription is
+  /// shown first — you should see what was on screen, with the translation one
+  /// tap away.
+  bool _showingTranslation = false;
 
   late AppLanguage _activeLanguage;
 
@@ -177,7 +178,7 @@ class _ResultSheetState extends State<ResultSheet> {
         _analyzing = false;
         _analyzeError = null;
         _result = result;
-        _showingTranslation = true;
+        _showingTranslation = false;
       });
       _translationCache[_cacheKey(result.originalText, target.code)] =
           result.translation;
