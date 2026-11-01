@@ -22,6 +22,7 @@ Future<void> showResultSheet(
   ScanResult? initialResult,
   String? initialTargetCode,
   ValueChanged<ScanResult>? onResult,
+  Future<void> Function(String text)? copy,
 }) async {
   assert(
     initialResult != null || imagePng != null,
@@ -42,6 +43,7 @@ Future<void> showResultSheet(
       initialResult: initialResult,
       initialTargetCode: initialTargetCode,
       onResult: onResult,
+      copy: copy,
     ),
   );
 }
@@ -57,6 +59,7 @@ class ResultSheet extends StatefulWidget {
     this.initialResult,
     this.initialTargetCode,
     this.onResult,
+    this.copy,
   }) : assert(
          initialResult != null || imagePng != null,
          'imagePng is required when initialResult is null',
@@ -72,6 +75,10 @@ class ResultSheet extends StatefulWidget {
   final String? initialTargetCode;
   final ValueChanged<ScanResult>? onResult;
 
+  /// Overrides the clipboard write. The overlay has no Activity, so it routes
+  /// the copy through a native channel instead of the platform plugin.
+  final Future<void> Function(String text)? copy;
+
   @override
   State<ResultSheet> createState() => _ResultSheetState();
 }
@@ -86,6 +93,7 @@ class _ResultSheetState extends State<ResultSheet> {
   ScanResult? _result;
   bool _analyzing = false;
   bool _copied = false;
+  bool _copyFailed = false;
   Timer? _copiedTimer;
   TranslatorException? _analyzeError;
 
@@ -307,13 +315,31 @@ class _ResultSheetState extends State<ResultSheet> {
     if (result == null) return;
 
     final text = _showingTranslation ? result.translation : result.originalText;
-    await Clipboard.setData(ClipboardData(text: text));
+    try {
+      final writer = widget.copy;
+      if (writer != null) {
+        await writer(text);
+      } else {
+        await Clipboard.setData(ClipboardData(text: text));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _copiedTimer?.cancel();
+      setState(() => _copyFailed = true);
+      _copiedTimer = Timer(const Duration(milliseconds: 1600), () {
+        if (mounted) setState(() => _copyFailed = false);
+      });
+      return;
+    }
     if (!mounted) return;
 
     // The app-level SnackBar would render underneath the modal sheet, so the
     // confirmation lives on the button itself.
     _copiedTimer?.cancel();
-    setState(() => _copied = true);
+    setState(() {
+      _copied = true;
+      _copyFailed = false;
+    });
     _copiedTimer = Timer(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _copied = false);
     });
@@ -568,10 +594,14 @@ class _ResultSheetState extends State<ResultSheet> {
             key: const ValueKey<String>('result-copy'),
             onPressed: _copyCurrentVariant,
             icon: Icon(
-              _copied ? Icons.check_rounded : Icons.copy_rounded,
+              _copied
+                  ? Icons.check_rounded
+                  : (_copyFailed ? Icons.error_outline : Icons.copy_rounded),
               size: 18,
             ),
-            label: Text(_copied ? 'Copied' : 'Copy'),
+            label: Text(
+              _copied ? 'Copied' : (_copyFailed ? 'Copy failed' : 'Copy'),
+            ),
           ),
           const Spacer(),
           if (!result.isTranslationIdentical)

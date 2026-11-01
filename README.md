@@ -23,8 +23,11 @@ On the device:
 
 1. Open Oshi → **Enable capture** → turn on the *Oshi capture* accessibility
    service. (It only takes screenshots on demand; window content is not read.)
-2. **Add the Quick Settings tile** (optional but recommended).
-3. Tap the ongoing notification, or the tile, and drag over the text.
+2. **Allow** the floating overlay (*Display over other apps*) so captures render
+   on top of whatever you are reading instead of opening Oshi. Without it, Oshi
+   falls back to a foreground activity and returns you to your app afterwards.
+3. **Add the Quick Settings tile** (optional but recommended).
+4. Tap the ongoing notification, or the tile, and drag over the text.
 
 ## Architecture
 
@@ -36,7 +39,15 @@ CaptureTriggerActivity (native, no UI)
   · waits 400 ms for the shade to collapse (one retry)
   · AccessibilityService.takeScreenshot()
   · PNG → cacheDir/captures/latest.png
-  · starts MainActivity with the path
+        │
+        ├─ overlay permitted ──────────────► CaptureOverlayController
+        │                                    WindowManager TYPE_APPLICATION_OVERLAY
+        │                                    hosts a second Flutter engine
+        │                                    (entrypoint `overlayMain`)
+        │                                     · your app stays in the foreground
+        │
+        └─ no permission ─────────────────► MainActivity with the path
+                                             · returns you to your app on dismiss
         │
         ▼
 Flutter: CropScreen (frozen screenshot, drag a rect)
@@ -49,6 +60,9 @@ GeminiFlashLiteTranslator.analyzeImage  →  ResultSheet
 - `lib/data` — Gemini REST client, prompt builders, models.
 - `lib/services` — `Translator` interface + Gemini implementation.
 - `lib/features` — crop overlay, result sheet, settings screen.
+- `lib/overlay` — the floating-overlay entrypoint (`overlayMain`) and its
+  channel (`oshi/overlay`); copy goes through native because there is no
+  Activity to give the clipboard plugin.
 - `android/.../kotlin/dev/rp/oshi` — accessibility service, trigger activity,
   tile service, notification/boot receiver, method-channel handler.
 

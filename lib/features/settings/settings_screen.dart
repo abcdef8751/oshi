@@ -35,6 +35,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   _LoadState _tileState = _LoadState.loading;
   bool _tileAdded = false;
 
+  _LoadState _overlayState = _LoadState.loading;
+  bool _overlayPermitted = false;
+
   bool _notificationBusy = false;
 
   @override
@@ -44,6 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     widget.settings.addListener(_onSettingsChanged);
     _refreshAccessibility();
     _refreshTile();
+    _refreshOverlay();
   }
 
   @override
@@ -88,6 +92,20 @@ class _SettingsScreenState extends State<SettingsScreen>
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _refreshOverlay() async {
+    final permitted = await _guard(widget.captureChannel.isOverlayPermitted);
+    if (!mounted) return;
+    setState(() {
+      _overlayState = permitted == null ? _LoadState.failed : _LoadState.ready;
+      _overlayPermitted = permitted ?? false;
+    });
+  }
+
+  Future<void> _openOverlaySettings() async {
+    await _guard(widget.captureChannel.openOverlaySettings);
+    await _refreshOverlay();
   }
 
   Future<void> _refreshAccessibility() async {
@@ -223,6 +241,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           const _SectionHeader('Capture'),
           _buildAccessibilityTile(theme),
+          _buildOverlayTile(theme),
           _buildTileRow(theme),
           const _SectionHeader('Translation'),
           ListTile(
@@ -330,6 +349,31 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       onPressed: _openAccessibilitySettings,
       child: const Text('Enable capture'),
+    );
+  }
+
+  Widget _buildOverlayTile(ThemeData theme) {
+    final ready = _overlayState == _LoadState.ready;
+    final unknown = _overlayState == _LoadState.failed;
+    final subtitle = unknown
+        ? 'Unknown'
+        : (_overlayPermitted
+            ? 'Enabled — captures float over your current app'
+            : 'Off — captures open Oshi in the foreground');
+
+    return ListTile(
+      title: const Text('Floating overlay'),
+      subtitle: Text(subtitle),
+      leading: Icon(
+        _overlayPermitted ? Icons.picture_in_picture_alt : Icons.crop_free,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      trailing: (ready && _overlayPermitted)
+          ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+          : TextButton(
+              onPressed: _openOverlaySettings,
+              child: const Text('Allow'),
+            ),
     );
   }
 

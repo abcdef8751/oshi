@@ -68,6 +68,12 @@ class FakeCaptureChannel extends CaptureChannel {
   Future<void> returnToPreviousApp() async => returnedToPreviousApp++;
 
   @override
+  Future<bool> isOverlayPermitted() async => false;
+
+  @override
+  Future<void> openOverlaySettings() async {}
+
+  @override
   void setCaptureAvailableHandler(void Function() handler) {
     captureAvailable = handler;
   }

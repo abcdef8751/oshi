@@ -16,10 +16,16 @@ class FakeCaptureChannel extends CaptureChannel {
     this.throwOnPost = false,
     this.throwOnCancel = false,
     this.throwOnAccessibilityQuery = false,
+    this.overlayPermitted = false,
+    this.throwOnOverlayQuery = false,
   });
 
   bool accessibilityEnabled;
   bool tileAdded;
+  bool overlayPermitted;
+  bool throwOnOverlayQuery;
+  int overlayQueryCount = 0;
+  int openOverlaySettingsCount = 0;
   bool throwOnPost;
   bool throwOnCancel;
   bool throwOnAccessibilityQuery;
@@ -33,6 +39,21 @@ class FakeCaptureChannel extends CaptureChannel {
   int openTileSettingsCount = 0;
   int getPendingCaptureCount = 0;
   int setCaptureAvailableHandlerCount = 0;
+
+  @override
+  Future<bool> isOverlayPermitted() async {
+    overlayQueryCount++;
+    if (throwOnOverlayQuery) {
+      throw PlatformException(code: CaptureErrorCodes.internalError);
+    }
+    return overlayPermitted;
+  }
+
+  @override
+  Future<void> openOverlaySettings() async {
+    openOverlaySettingsCount++;
+    overlayPermitted = true;
+  }
 
   @override
   Future<bool> isAccessibilityEnabled() async {
@@ -140,6 +161,48 @@ void main() {
     expect(find.text('Enabled'), findsOneWidget);
     expect(find.text('Enable capture'), findsNothing);
     expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+  });
+
+  testWidgets('the overlay row offers the permission and reflects the grant',
+      (tester) async {
+    final channel = FakeCaptureChannel(overlayPermitted: false);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: SettingsScreen(
+          settings: Settings.memory(),
+          captureChannel: channel,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Floating overlay'), findsOneWidget);
+    expect(find.textContaining('Off — captures open Oshi'), findsOneWidget);
+
+    await tester.tap(find.text('Allow'));
+    await tester.pumpAndSettle();
+
+    expect(channel.openOverlaySettingsCount, 1);
+    expect(find.textContaining('Enabled — captures float'), findsOneWidget);
+  });
+
+  testWidgets('an unknown overlay state still offers the button',
+      (tester) async {
+    final channel = FakeCaptureChannel(throwOnOverlayQuery: true);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: SettingsScreen(
+          settings: Settings.memory(),
+          captureChannel: channel,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unknown'), findsOneWidget);
+    expect(find.text('Allow'), findsOneWidget);
   });
 
   testWidgets('tile card opens tile settings and remembers the prompt',

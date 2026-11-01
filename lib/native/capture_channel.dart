@@ -93,6 +93,22 @@ class CaptureChannel {
     );
   }
 
+  /// Whether the floating-overlay permission is granted.
+  Future<bool> isOverlayPermitted() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('isOverlayPermitted');
+      return result ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Opens the system "Display over other apps" screen for this app.
+  Future<void> openOverlaySettings() =>
+      _channel.invokeMethod<void>('openOverlaySettings');
+
   /// Moves Oshi's task to the back, revealing whatever the user was doing
   /// before the capture. Used when a capture-triggered flow finishes so the
   /// overlay feels like a system tool rather than an app switch.

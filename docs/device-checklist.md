@@ -12,7 +12,8 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
 Setup on the device: open Oshi → **Enable capture** → turn on *Oshi capture* in
-Settings → Accessibility. Optionally **Add the Quick Settings tile**.
+Settings → Accessibility. Grant **Floating overlay** (*Display over other apps*)
+from Oshi's settings. Optionally **Add the Quick Settings tile**.
 
 ## 1. Shade timing (tune `SHADE_COLLAPSE_DELAY_MS`)
 
@@ -24,6 +25,22 @@ ongoing **Capture text** notification, and drag a box.
 - [ ] If the shade was still animating, try 500–600 ms in
       `CaptureTriggerActivity.kt` (`SHADE_COLLAPSE_DELAY_MS`). The code retries
       once on `ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT`.
+
+## 1b. Floating overlay
+
+- [ ] With the overlay granted, open another app (a browser, a chat), tap the
+      notification: the crop screen appears over it, the other app never
+      leaves the foreground, and dismissing returns you straight to it.
+- [ ] The overlay paints edge to edge (no black bars, no status-bar gap) and
+      the crop/result UI is fully touchable.
+- [ ] Rotate while the overlay is up: the crop screen reflows and the selection
+      stays usable.
+- [ ] Copy from the result sheet lands on the clipboard (the overlay has no
+      Activity, so this goes through `oshi/overlay`'s native handler).
+- [ ] Revoke *Display over other apps*: the next capture falls back to the
+      foreground activity (Oshi opens, then returns you when you dismiss).
+- [ ] Overlay survives ten captures in a row without the engine dying or the
+      window leaking.
 
 ## 2. Quick Settings tile
 

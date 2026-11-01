@@ -108,6 +108,9 @@ class CaptureTriggerActivity : Activity() {
                 if (destroyed) return@runOnUiThread
                 if (file == null) {
                     finishWithError(CaptureErrorCodes.INTERNAL_ERROR)
+                } else if (CaptureOverlayController.show(applicationContext, file.absolutePath)) {
+                    // Floating overlay: nothing is brought to the foreground.
+                    finish()
                 } else {
                     launchMainActivity(path = file.absolutePath, error = null)
                 }

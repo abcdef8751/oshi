@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
@@ -53,6 +54,8 @@ class CaptureChannelHandler(
             "isTileAdded" -> result.success(isTileAdded())
             "openTileSettings" -> openTileSettings(result)
             "getPendingCapture" -> result.success(pendingCapture())
+            "isOverlayPermitted" -> result.success(CaptureOverlayController.isPermitted(activity))
+            "openOverlaySettings" -> openOverlaySettings(result)
             "returnToPreviousApp" -> {
                 activity.moveTaskToBack(true)
                 result.success(null)
@@ -190,6 +193,20 @@ class CaptureChannelHandler(
      * own `onTileAdded` / `onTileRemoved` callbacks.
      */
     private fun isTileAdded(): Boolean = TileState.isAdded(activity)
+
+    private fun openOverlaySettings(result: MethodChannel.Result) {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:" + activity.packageName),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            activity.startActivity(intent)
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not open the overlay permission screen", t)
+            result.error(CaptureErrorCodes.INTERNAL_ERROR, t.message, null)
+        }
+    }
 
     private fun openTileSettings(result: MethodChannel.Result) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && requestTileAdd()) {
