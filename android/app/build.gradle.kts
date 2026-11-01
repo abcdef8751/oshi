@@ -8,7 +8,8 @@ plugins {
 android {
     namespace = "dev.rp.oshi"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    // Pinned to an NDK that exists on this machine; there is no native code.
+    ndkVersion = "28.1.13356709"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -32,7 +33,6 @@ android {
         release {
             // Personal sideload build: debug signing is fine.
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
         }
     }
 }
