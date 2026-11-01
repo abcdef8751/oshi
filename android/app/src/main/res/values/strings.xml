@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Oshi</string>
+    <string name="accessibility_service_label">Oshi capture</string>
+    <string name="accessibility_service_description">Oshi needs this to read the pixels on screen for OCR and translation. It never reads window contents, only screenshots you explicitly request.</string>
+    <string name="notification_channel_name">Capture text</string>
+    <string name="notification_channel_description">Ongoing shortcut to grab text from the screen.</string>
+    <string name="notification_title">Capture text</string>
+    <string name="notification_text">Tap to select a region and translate it</string>
+    <string name="tile_label">Capture text</string>
+    <string name="capture_failed">Capture failed</string>
+</resources>
