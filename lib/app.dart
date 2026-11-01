@@ -121,6 +121,7 @@ class _OshiAppState extends State<OshiApp>
   Future<void> _drainPendingCapture() async {
     if (_draining) return;
     _draining = true;
+    var handled = false;
     try {
       // Loop instead of `if`: a second capture taken while the crop screen or
       // result sheet is open is queued natively and must not be dropped.
@@ -133,10 +134,16 @@ class _OshiAppState extends State<OshiApp>
         }
         final path = pending.path;
         if (path == null) return;
+        handled = true;
         await _openCrop(path);
       }
     } finally {
       _draining = false;
+      if (handled) {
+        // The capture flow is done: hand the screen back to whatever the user
+        // was looking at instead of leaving them in Oshi.
+        unawaited(_channel.returnToPreviousApp().catchError((Object _) {}));
+      }
     }
   }
 

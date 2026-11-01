@@ -53,6 +53,10 @@ class CaptureChannelHandler(
             "isTileAdded" -> result.success(isTileAdded())
             "openTileSettings" -> openTileSettings(result)
             "getPendingCapture" -> result.success(pendingCapture())
+            "returnToPreviousApp" -> {
+                activity.moveTaskToBack(true)
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }

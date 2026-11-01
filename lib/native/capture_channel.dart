@@ -93,6 +93,12 @@ class CaptureChannel {
     );
   }
 
+  /// Moves Oshi's task to the back, revealing whatever the user was doing
+  /// before the capture. Used when a capture-triggered flow finishes so the
+  /// overlay feels like a system tool rather than an app switch.
+  Future<void> returnToPreviousApp() =>
+      _channel.invokeMethod<void>('returnToPreviousApp');
+
   /// Fires when the native side wants us to drain [getPendingCapture].
   void setCaptureAvailableHandler(void Function() handler) {
     _channel.setMethodCallHandler((call) async {

@@ -26,6 +26,7 @@ class FakeCaptureChannel extends CaptureChannel {
   int posted = 0;
   int cancelled = 0;
   int openedSettings = 0;
+  int returnedToPreviousApp = 0;
   void Function()? captureAvailable;
 
   @override
@@ -62,6 +63,9 @@ class FakeCaptureChannel extends CaptureChannel {
     pending = null;
     return value ?? const PendingCapture();
   }
+
+  @override
+  Future<void> returnToPreviousApp() async => returnedToPreviousApp++;
 
   @override
   void setCaptureAvailableHandler(void Function() handler) {
@@ -323,6 +327,42 @@ void main() {
       () => find.text('Drag to select text').evaluate().isNotEmpty,
     );
     expect(find.text('Drag to select text'), findsOneWidget);
+  });
+
+  testWidgets('finishing a capture flow returns to the previous app',
+      (tester) async {
+    shotPath = await _writeTestPng(tester, tempDir);
+    final channel = FakeCaptureChannel(pending: PendingCapture(path: shotPath));
+    await tester.pumpWidget(app(channel: channel));
+
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(channel.returnedToPreviousApp, 1);
+    // Oshi's own home screen is what is shown before the task goes back.
+    expect(find.text('Grab text from anywhere.'), findsOneWidget);
+  });
+
+  testWidgets('the debug button does not bounce the user out of Oshi',
+      (tester) async {
+    shotPath = await _writeTestPng(tester, tempDir);
+    final channel = FakeCaptureChannel(screenshotPath: shotPath);
+    await tester.pumpWidget(app(channel: channel));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Capture now (debug)'));
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(channel.returnedToPreviousApp, 0);
   });
 
   testWidgets('the ongoing notification is posted on launch when enabled',

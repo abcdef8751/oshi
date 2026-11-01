@@ -124,7 +124,8 @@ class CaptureTriggerActivity : Activity() {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION,
             )
             if (path != null) putExtra(CapturePending.EXTRA_CAPTURE_PATH, path)
             if (error != null) putExtra(CapturePending.EXTRA_CAPTURE_ERROR, error)

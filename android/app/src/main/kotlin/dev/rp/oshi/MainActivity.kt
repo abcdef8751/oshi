@@ -14,6 +14,11 @@ class MainActivity : FlutterActivity() {
         // points at is long consumed (and latest.png may hold a newer shot).
         if (savedInstanceState == null) {
             handleCaptureIntent(intent)
+            if (CapturePending.hasPending()) {
+                // Appear like an overlay, not an app launch.
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
         }
     }
 
