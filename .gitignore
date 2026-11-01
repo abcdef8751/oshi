@@ -46,3 +46,6 @@ app.*.map.json
 
 # Oshi secrets
 .env
+
+# Kotlin build scratch
+android/.kotlin/

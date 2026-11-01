@@ -69,10 +69,10 @@ bar, settings screen.
 
 ## Manual acceptance checklist (the part tests cannot cover)
 
-See plan §9 — notification-tap timing on the target device, QS tile from a
-partially collapsed shade, secure windows, rotation mid-crop, boot re-post,
-429 handling, airplane mode, and verifying in logcat that retranslate sends no
-`inlineData`.
+[`docs/device-checklist.md`](docs/device-checklist.md) — notification-tap
+timing on the target device, QS tile from a partially collapsed shade, secure
+windows, rotation mid-crop, boot re-post, 429 handling, airplane mode, and
+verifying that retranslate sends no `inlineData`.
 
 ## Known limits
 
