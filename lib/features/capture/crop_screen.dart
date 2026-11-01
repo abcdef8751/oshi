@@ -65,6 +65,9 @@ class _CropScreenState extends State<CropScreen> {
   /// stable across rotation via [_syncSelection].
   Rect? _selection;
 
+  /// Selection in viewport coordinates, painted without rebuilding the tree.
+  final ValueNotifier<Rect?> _paintSelection = ValueNotifier<Rect?>(null);
+
   CropHandle? _activeHandle;
   Offset? _panDownPosition;
   Offset? _dragStart;
@@ -80,9 +83,15 @@ class _CropScreenState extends State<CropScreen> {
 
   @override
   void dispose() {
+    _paintSelection.dispose();
     _image?.dispose();
     _image = null;
     super.dispose();
+  }
+
+  /// Mirrors [_selection] into viewport coordinates for the painter.
+  void _publishSelection() {
+    _paintSelection.value = _selection?.shift(_imageOffset);
   }
 
   Future<void> _loadImage() async {
@@ -172,18 +181,20 @@ class _CropScreenState extends State<CropScreen> {
           // Runs during layout, so the bars built below always see the
           // selection for this viewport size.
           _syncSelection(transform, imageArea, viewport);
-          final viewportSelection = _selection?.shift(transform.offset);
 
           return Stack(
             fit: StackFit.expand,
             children: [
-              RawImage(
-                image: image,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.medium,
+              // Its own layer: the screenshot must not repaint while dragging.
+              RepaintBoundary(
+                child: RawImage(
+                  image: image,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                ),
               ),
               CropOverlay(
-                selection: viewportSelection,
+                selection: _paintSelection,
                 onPanDown: _onPanDown,
                 onPanStart: _onPanStart,
                 onPanUpdate: _onPanUpdate,
@@ -299,6 +310,7 @@ class _CropScreenState extends State<CropScreen> {
       imageArea,
       minSize: _creating ? 0 : kMinCropSize,
     );
+    _publishSelection();
   }
 
   void _onPanDown(Offset localPosition) {
@@ -357,13 +369,12 @@ class _CropScreenState extends State<CropScreen> {
     if (_creating) {
       final from = start - offset;
       final to = localPosition - offset;
-      setState(() {
-        _selection = clampSelection(
-          rectFromPoints(from, to),
-          imageArea,
-          minSize: 0,
-        );
-      });
+      _selection = clampSelection(
+        rectFromPoints(from, to),
+        imageArea,
+        minSize: 0,
+      );
+      _publishSelection();
       return;
     }
 
@@ -371,14 +382,13 @@ class _CropScreenState extends State<CropScreen> {
     final base = _dragStartSelection;
     if (handle == null || base == null) return;
 
-    setState(() {
-      _selection = resizeSelection(
-        selection: base,
-        handle: handle,
-        delta: localPosition - start,
-        bounds: imageArea,
-      );
-    });
+    _selection = resizeSelection(
+      selection: base,
+      handle: handle,
+      delta: localPosition - start,
+      bounds: imageArea,
+    );
+    _publishSelection();
   }
 
   void _onPanEnd() {
@@ -399,13 +409,16 @@ class _CropScreenState extends State<CropScreen> {
       }
       _creating = false;
       _selectionBeforeCreate = null;
-      setState(() {});
     }
 
     _activeHandle = null;
     _dragStartSelection = null;
     _dragStart = null;
     _panDownPosition = null;
+
+    // Single rebuild at the end of the gesture to refresh the Use button.
+    setState(() {});
+    _publishSelection();
   }
 
   void _cancel() {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
@@ -20,7 +21,10 @@ class CropOverlay extends StatelessWidget {
 
   /// Selection rectangle in viewport-local coordinates, or null when there is
   /// nothing selected (only the dim layer is painted).
-  final Rect? selection;
+  ///
+  /// A listenable rather than a plain value so dragging repaints only the
+  /// overlay instead of rebuilding (and repainting the screenshot).
+  final ValueListenable<Rect?> selection;
 
   /// The initial pointer-down position. Reported separately from
   /// [onPanStart] because gesture recognisers swallow a few pixels of touch
@@ -50,9 +54,9 @@ class CropOverlay extends StatelessWidget {
 
 /// Paints the dim layer, selection border and corner handles.
 class CropOverlayPainter extends CustomPainter {
-  const CropOverlayPainter({required this.selection});
+  CropOverlayPainter({required this.selection}) : super(repaint: selection);
 
-  final Rect? selection;
+  final ValueListenable<Rect?> selection;
 
   static const Color dimColor = Color(0x99000000);
   static const double handleArm = 22;
@@ -62,7 +66,7 @@ class CropOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final full = Offset.zero & size;
     final dimPaint = Paint()..color = dimColor;
-    final selected = selection;
+    final selected = selection.value;
 
     if (selected == null || selected.width <= 0 || selected.height <= 0) {
       canvas.drawRect(full, dimPaint);
@@ -120,7 +124,6 @@ class CropOverlayPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CropOverlayPainter oldDelegate) {
-    return oldDelegate.selection != selection;
-  }
+  bool shouldRepaint(covariant CropOverlayPainter oldDelegate) =>
+      oldDelegate.selection != selection;
 }
