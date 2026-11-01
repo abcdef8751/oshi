@@ -54,7 +54,7 @@ class CaptureChannelHandler(
             "isTileAdded" -> result.success(isTileAdded())
             "openTileSettings" -> openTileSettings(result)
             "getPendingCapture" -> result.success(pendingCapture())
-            "isOverlayPermitted" -> result.success(CaptureOverlayController.isPermitted(activity))
+            "isOverlayPermitted" -> result.success(OverlayPermission.isPermitted(activity))
             "openOverlaySettings" -> openOverlaySettings(result)
             "returnToPreviousApp" -> {
                 activity.moveTaskToBack(true)

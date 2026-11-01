@@ -40,11 +40,12 @@ CaptureTriggerActivity (native, no UI)
   · AccessibilityService.takeScreenshot()
   · PNG → cacheDir/captures/latest.png
         │
-        ├─ overlay permitted ──────────────► CaptureOverlayController
-        │                                    WindowManager TYPE_APPLICATION_OVERLAY
-        │                                    hosts a second Flutter engine
-        │                                    (entrypoint `overlayMain`)
-        │                                     · your app stays in the foreground
+        ├─ overlay permitted ──────────────► CaptureActivity
+        │                                    transparent, own task,
+        │                                    excluded from recents, no animation
+        │                                    · crop UI paints over your app
+        │                                    · result sheet floats over it (dimmed)
+        │                                    · finishing returns to your app
         │
         └─ no permission ─────────────────► MainActivity with the path
                                              · returns you to your app on dismiss
@@ -60,9 +61,8 @@ GeminiFlashLiteTranslator.analyzeImage  →  ResultSheet
 - `lib/data` — Gemini REST client, prompt builders, models.
 - `lib/services` — `Translator` interface + Gemini implementation.
 - `lib/features` — crop overlay, result sheet, settings screen.
-- `lib/overlay` — the floating-overlay entrypoint (`overlayMain`) and its
-  channel (`oshi/overlay`); copy goes through native because there is no
-  Activity to give the clipboard plugin.
+- `lib/overlay` — the overlay UI (`CaptureActivity` starts the app on the
+  `/capture` route) and its channel (`oshi/overlay`).
 - `android/.../kotlin/dev/rp/oshi` — accessibility service, trigger activity,
   tile service, notification/boot receiver, method-channel handler.
 

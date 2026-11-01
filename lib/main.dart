@@ -7,18 +7,14 @@ import 'overlay/overlay_app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final apiKey = await loadGeminiApiKey();
-  runApp(OshiApp(apiKey: apiKey));
-}
-
-/// Entrypoint for the floating overlay engine (see `CaptureOverlayController`).
-///
-/// Must stay in this library: the engine looks the function up in the app's
-/// main library.
-@pragma('vm:entry-point')
-Future<void> overlayMain() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final apiKey = await loadGeminiApiKey();
-  runApp(OshiOverlayApp(apiKey: apiKey));
+  // CaptureActivity starts us with the overlay route; everything else is the
+  // normal app shell.
+  final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+  if (route == kCaptureRoute) {
+    runApp(OshiOverlayApp(apiKey: apiKey));
+  } else {
+    runApp(OshiApp(apiKey: apiKey));
+  }
 }
 
 /// Reads the bundled, gitignored `.env`; empty string when it is missing.

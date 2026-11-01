@@ -29,14 +29,16 @@ ongoing **Capture text** notification, and drag a box.
 ## 1b. Floating overlay
 
 - [ ] With the overlay granted, open another app (a browser, a chat), tap the
-      notification: the crop screen appears over it, the other app never
-      leaves the foreground, and dismissing returns you straight to it.
+      notification: the crop screen appears over it, the result sheet floats
+      over your app (dimmed), and dismissing returns you straight to it —
+      Oshi's own UI never appears.
 - [ ] The overlay paints edge to edge (no black bars, no status-bar gap) and
       the crop/result UI is fully touchable.
+- [ ] The capture does not leave an entry in the recents/app switcher.
 - [ ] Rotate while the overlay is up: the crop screen reflows and the selection
       stays usable.
-- [ ] Copy from the result sheet lands on the clipboard (the overlay has no
-      Activity, so this goes through `oshi/overlay`'s native handler).
+- [ ] Copy from the result sheet lands on the clipboard (it goes through
+      `oshi/overlay`'s native handler).
 - [ ] Revoke *Display over other apps*: the next capture falls back to the
       foreground activity (Oshi opens, then returns you when you dismiss).
 - [ ] Overlay survives ten captures in a row without the engine dying or the

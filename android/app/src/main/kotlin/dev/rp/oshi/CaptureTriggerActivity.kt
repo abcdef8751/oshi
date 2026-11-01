@@ -1,6 +1,7 @@
 package dev.rp.oshi
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -15,8 +16,8 @@ import android.util.Log
  * On Android 12+ a notification cannot trampoline into a receiver, and the
  * shade is still animating away when the tap lands. Existing as an activity
  * both dismisses the shade and gives us a cheap place to wait 400 ms before
- * grabbing pixels. The capture is written to the cache and handed to
- * [MainActivity] as an intent extra; nothing is rendered here.
+ * grabbing pixels. The capture is then handed to the floating overlay, or to
+ * [MainActivity] when the overlay permission is missing.
  */
 class CaptureTriggerActivity : Activity() {
 
@@ -108,14 +109,44 @@ class CaptureTriggerActivity : Activity() {
                 if (destroyed) return@runOnUiThread
                 if (file == null) {
                     finishWithError(CaptureErrorCodes.INTERNAL_ERROR)
-                } else if (CaptureOverlayController.show(applicationContext, file.absolutePath)) {
-                    // Floating overlay: nothing is brought to the foreground.
-                    finish()
+                    return@runOnUiThread
+                }
+                val path = file.absolutePath
+                if (OverlayPermission.isPermitted(applicationContext)) {
+                    launchOverlayActivity(path)
                 } else {
-                    launchMainActivity(path = file.absolutePath, error = null)
+                    launchMainActivity(path = path, error = null)
                 }
             }
         }.start()
+    }
+
+    /**
+     * Opens the transparent [CaptureActivity]: its own task, no animation, and
+     * it never shows Oshi's own UI.
+     */
+    private fun launchOverlayActivity(path: String) {
+        try {
+            startActivity(
+                Intent(this, CaptureActivity::class.java).apply {
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                    )
+                    putExtra(CapturePending.EXTRA_CAPTURE_PATH, path)
+                    // Also park it natively in case the activity is restored
+                    // without its original intent extras.
+                    CapturePending.set(path, null)
+                },
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not open the capture overlay", t)
+            launchMainActivityFromApp(applicationContext, path)
+        } finally {
+            finish()
+        }
     }
 
     private fun finishWithError(code: String) {
@@ -123,16 +154,7 @@ class CaptureTriggerActivity : Activity() {
     }
 
     private fun launchMainActivity(path: String?, error: String?) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_NO_ANIMATION,
-            )
-            if (path != null) putExtra(CapturePending.EXTRA_CAPTURE_PATH, path)
-            if (error != null) putExtra(CapturePending.EXTRA_CAPTURE_ERROR, error)
-        }
+        val intent = buildMainIntent(this, path, error)
         try {
             startActivity(intent)
         } catch (t: Throwable) {
@@ -143,6 +165,30 @@ class CaptureTriggerActivity : Activity() {
         } finally {
             finish()
         }
+    }
+
+    private fun launchMainActivityFromApp(context: Context, path: String?) {
+        try {
+            context.startActivity(buildMainIntent(context, path, null))
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not launch MainActivity, parking the capture", t)
+            CapturePending.set(path, null)
+        }
+    }
+
+    private fun buildMainIntent(
+        context: Context,
+        path: String?,
+        error: String?,
+    ): Intent = Intent(context, MainActivity::class.java).apply {
+        addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_NO_ANIMATION,
+        )
+        if (path != null) putExtra(CapturePending.EXTRA_CAPTURE_PATH, path)
+        if (error != null) putExtra(CapturePending.EXTRA_CAPTURE_ERROR, error)
     }
 
     private companion object {
@@ -156,5 +202,6 @@ class CaptureTriggerActivity : Activity() {
 
         /** If the capture callback never lands, fail instead of hanging invisible. */
         private const val CAPTURE_TIMEOUT_MS = 3_000L
+
     }
 }

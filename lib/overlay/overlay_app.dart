@@ -10,6 +10,10 @@ import '../features/result/result_sheet.dart';
 import '../services/gemini_translator.dart';
 import '../services/translator.dart';
 
+/// Initial route [CaptureActivity] starts the engine with. Must match
+/// `CaptureActivity.ROUTE_CAPTURE` on the native side.
+const String kCaptureRoute = '/capture';
+
 /// Flutter half of the floating overlay.
 ///
 /// Runs in its own engine started with the `overlayMain` entrypoint (see
@@ -45,6 +49,8 @@ class _OshiOverlayAppState extends State<OshiOverlayApp> {
 
   bool _running = false;
   bool _booted = false;
+  String? _queuedPath;
+  Timer? _stallTimer;
 
   @override
   void initState() {
@@ -59,58 +65,80 @@ class _OshiOverlayAppState extends State<OshiOverlayApp> {
 
   @override
   void dispose() {
+    _stallTimer?.cancel();
     _targetLanguage.dispose();
     super.dispose();
   }
 
   Future<void> _boot() async {
-    var languageResolved = false;
+    // Never gate "ready" on a plugin call: if the preferences channel ever
+    // stalls, the overlay would sit black forever.
+    _booted = true;
+    Map<String, dynamic>? ready;
     try {
-      final settings = widget.settings ?? await Settings.load();
-      _targetLanguage.value = languageForCode(settings.targetLangCode);
-      languageResolved = true;
-    } catch (_) {
-      // Preferences are a nicety; native hands us the code below instead.
+      ready = await _channel.invokeMapMethod<String, dynamic>('ready');
+    } catch (error) {
+      debugPrint('[oshi-overlay] ready failed: $error');
     }
     if (!mounted) return;
-    _booted = true;
-    // Tell native we can receive "show" now, and drain a capture that arrived
-    // while the engine was still starting.
-    try {
-      final ready = await _channel.invokeMapMethod<String, dynamic>('ready');
-      if (!languageResolved) {
-        final code = ready?['targetLang'] as String?;
-        if (code != null && code.isNotEmpty) {
-          _targetLanguage.value = languageForCode(code);
-        }
-      }
-      final path = ready?['path'] as String?;
-      if (path != null && path.isNotEmpty) await _run(path);
-    } catch (_) {
-      // The window was dismissed before we finished booting.
+
+    final code = ready?['targetLang'] as String?;
+    if (code != null && code.isNotEmpty) {
+      _targetLanguage.value = languageForCode(code);
     }
+
+    final path = ready?['path'] as String? ?? _queuedPath;
+    _queuedPath = null;
+    debugPrint('[oshi-overlay] booted, path=${path != null}');
+    if (path != null && path.isNotEmpty) await _run(path);
   }
 
   Future<void> _onMethodCall(MethodCall call) async {
-    if (call.method != 'show' || !_booted) return;
+    if (call.method != 'show') return;
     final arguments = call.arguments;
     final path = arguments is Map ? arguments['path'] as String? : null;
+    if (path == null) return;
+    if (!_booted) {
+      // Arrived while we were still starting; "ready" will pick it up.
+      _queuedPath = path;
+      return;
+    }
     // The reply must not wait for the whole crop + sheet flow.
-    if (path != null) unawaited(_run(path));
+    unawaited(_run(path));
   }
 
   Future<void> _run(String path) async {
     if (_running) return;
     _running = true;
+    debugPrint('[oshi-overlay] opening crop for $path');
     try {
       final navigator = await _navigator();
+      debugPrint('[oshi-overlay] navigator=${navigator != null}');
       if (navigator == null) return;
-      final bytes = await navigator.push<Uint8List>(
+      var framed = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => framed = true);
+
+      final routeFuture = navigator.push<Uint8List>(
         MaterialPageRoute<Uint8List>(
           fullscreenDialog: true,
-          builder: (_) => CropScreen(screenshotPath: path),
+          builder: (_) {
+            return CropScreen(screenshotPath: path);
+          },
         ),
       );
+      // A compositor that stops presenting after its first buffer leaves the
+      // crop invisible; tell native so it can fall back to the normal flow.
+      _stallTimer?.cancel();
+      _stallTimer = Timer(const Duration(milliseconds: 1200), () async {
+        if (framed) return;
+        debugPrint('[oshi-overlay] no frame after crop; reporting stall');
+        try {
+          await _channel.invokeMethod<void>('stalled');
+        } catch (_) {}
+      });
+
+      final bytes = await routeFuture;
+      debugPrint('[oshi-overlay] crop returned ${bytes?.length} bytes');
       if (bytes == null || !mounted) return;
 
       final translator = _translator;
@@ -183,7 +211,8 @@ class _OshiOverlayAppState extends State<OshiOverlayApp> {
       theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
-      home: const ColoredBox(color: Colors.black),
+      // Transparent so the user's app shows through until the crop paints.
+      home: const ColoredBox(color: Colors.transparent),
     );
   }
 }

@@ -28,6 +28,25 @@
             </intent-filter>
         </activity>
 
+        <!-- Transparent host for the capture overlay: its own task, excluded
+             from recents, no animation. Renders the crop UI over the user's
+             app instead of bringing Oshi forward. -->
+        <activity
+            android:name=".CaptureActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Oshi.Translucent"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/Theme.Oshi.Translucent" />
+        </activity>
+
         <!-- Invisible trampoline: launched from the notification / QS tile,
              captures the screen once the shade has collapsed, then hands the
              PNG path to MainActivity. -->
