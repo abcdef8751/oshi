@@ -117,31 +117,41 @@ class CaptureChannelHandler(
             )
             return
         }
-        service.capture { outcome ->
-            // The service's executor is the main thread, but keep the channel
-            // contract explicit in case that ever changes.
-            runOnMain {
-                when (outcome) {
-                    is CaptureAccessibilityService.CaptureResult.Success -> {
-                        try {
-                            val file = ScreenshotStore.writeLatest(activity.cacheDir, outcome.bitmap)
-                            result.success(file.absolutePath)
-                        } catch (t: Throwable) {
-                            Log.e(TAG, "Could not save screenshot", t)
-                            result.error(
-                                CaptureErrorCodes.INTERNAL_ERROR,
-                                t.message ?: "Could not save screenshot",
-                                null,
-                            )
-                        } finally {
-                            outcome.bitmap.recycle()
+        try {
+            service.capture { outcome ->
+                // The service's executor is the main thread, but keep the channel
+                // contract explicit in case that ever changes.
+                runOnMain {
+                    when (outcome) {
+                        is CaptureAccessibilityService.CaptureResult.Success -> {
+                            try {
+                                val file =
+                                    ScreenshotStore.writeLatest(activity.cacheDir, outcome.bitmap)
+                                result.success(file.absolutePath)
+                            } catch (t: Throwable) {
+                                Log.e(TAG, "Could not save screenshot", t)
+                                result.error(
+                                    CaptureErrorCodes.INTERNAL_ERROR,
+                                    t.message ?: "Could not save screenshot",
+                                    null,
+                                )
+                            } finally {
+                                outcome.bitmap.recycle()
+                            }
                         }
-                    }
-                    is CaptureAccessibilityService.CaptureResult.Failure -> {
-                        result.error(outcome.code, messageFor(outcome.code), null)
+                        is CaptureAccessibilityService.CaptureResult.Failure -> {
+                            result.error(outcome.code, messageFor(outcome.code), null)
+                        }
                     }
                 }
             }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not start screenshot", t)
+            result.error(
+                CaptureErrorCodes.INTERNAL_ERROR,
+                t.message ?: "Could not capture the screen",
+                null,
+            )
         }
     }
 
@@ -163,7 +173,7 @@ class CaptureChannelHandler(
                 Intent(ACTION_QUICK_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
             result.success(null)
-        } catch (t: ActivityNotFoundException) {
+        } catch (_: ActivityNotFoundException) {
             try {
                 activity.startActivity(
                     Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

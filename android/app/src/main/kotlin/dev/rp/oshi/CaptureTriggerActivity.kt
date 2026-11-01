@@ -57,7 +57,12 @@ class CaptureTriggerActivity : Activity() {
             finishWithError(CaptureErrorCodes.NO_ACCESSIBILITY_ACCESS)
             return
         }
-        service.capture { outcome -> handleCaptureResult(outcome) }
+        try {
+            service.capture { outcome -> handleCaptureResult(outcome) }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not start screenshot", t)
+            finishWithError(CaptureErrorCodes.INTERNAL_ERROR)
+        }
     }
 
     private fun handleCaptureResult(outcome: CaptureAccessibilityService.CaptureResult) {
