@@ -19,6 +19,9 @@ class CaptureTileService : TileService() {
 
     override fun onStartListening() {
         super.onStartListening()
+        // Listening implies the tile exists on this device; reconcile the flag
+        // in case it was added before Oshi ever saw onTileAdded.
+        TileState.setAdded(this, true)
         try {
             val tile = qsTile ?: return
             tile.label = getString(R.string.tile_label)
@@ -28,6 +31,16 @@ class CaptureTileService : TileService() {
         } catch (t: Throwable) {
             Log.w(TAG, "Could not update capture tile", t)
         }
+    }
+
+    override fun onTileAdded() {
+        super.onTileAdded()
+        TileState.setAdded(this, true)
+    }
+
+    override fun onTileRemoved() {
+        super.onTileRemoved()
+        TileState.setAdded(this, false)
     }
 
     override fun onClick() {

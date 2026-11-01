@@ -24,6 +24,10 @@ object CaptureNotifications {
 
     private const val TAG = "OshiNotifications"
 
+    /** Asking on every resume would spam the system dialog; once per process. */
+    @Volatile
+    private var permissionRequested = false
+
     /**
      * Posts the ongoing notification, or asks for `POST_NOTIFICATIONS` when
      * [activity] can show the dialog. Fails silently: notification trouble must
@@ -60,6 +64,8 @@ object CaptureNotifications {
     private fun requestPermissionIfPossible(activity: Activity?) {
         if (activity == null || activity.isFinishing) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (permissionRequested) return
+        permissionRequested = true
         try {
             activity.requestPermissions(
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),

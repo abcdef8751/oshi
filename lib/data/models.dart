@@ -30,10 +30,14 @@ class ScanResult {
       );
 
   factory ScanResult.fromJson(Map<String, dynamic> json) => ScanResult(
-        detectedLanguage: (json['detected_language'] as String?)?.trim() ?? '',
-        originalText: (json['original_text'] as String?) ?? '',
-        translation: (json['translation'] as String?) ?? '',
+        detectedLanguage: _string(json['detected_language']).trim(),
+        originalText: _string(json['original_text']),
+        translation: _string(json['translation']),
       );
+
+  /// Tolerates a model that returns a number/null where a string is expected,
+  /// so parse errors surface as [TranslatorException] and not a [TypeError].
+  static String _string(Object? value) => value is String ? value : '';
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'detected_language': detectedLanguage,

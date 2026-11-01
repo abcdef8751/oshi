@@ -69,7 +69,24 @@ AppLanguage languageForCode(String? code) {
   for (final lang in kLanguages) {
     if (lang.code.toLowerCase() == normalized) return lang;
   }
-  // `ja-JP` -> `ja`, `zh-CN` -> `zh-Hans`.
+  // `ja-JP` -> `ja`, and the common Chinese/Portuguese variants.
+  const aliases = <String, String>{
+    'zh-cn': 'zh-Hans',
+    'zh-sg': 'zh-Hans',
+    'zh-tw': 'zh-Hant',
+    'zh-hk': 'zh-Hant',
+    'zh-mo': 'zh-Hant',
+    'pt-br': 'pt',
+    'pt-pt': 'pt',
+    'nb': 'no',
+    'nn': 'no',
+  };
+  final alias = aliases[normalized];
+  if (alias != null) {
+    for (final lang in kLanguages) {
+      if (lang.code.toLowerCase() == alias.toLowerCase()) return lang;
+    }
+  }
   final base = normalized.split('-').first;
   for (final lang in kLanguages) {
     if (lang.code.toLowerCase() == base) return lang;
@@ -86,6 +103,10 @@ String detectedLanguageLabel(String code) {
   final normalized = code.replaceAll('_', '-').toLowerCase();
   for (final lang in kLanguages) {
     if (lang.code.toLowerCase() == normalized) return lang.nativeName;
+  }
+  final mapped = languageForCode(code);
+  if (mapped.code.toLowerCase() != 'en' || normalized.startsWith('en')) {
+    return mapped.nativeName;
   }
   final base = normalized.split('-').first;
   for (final lang in kLanguages) {

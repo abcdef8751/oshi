@@ -98,11 +98,12 @@ Future<Uint8List> downscalePng(
 }) async {
   if (bytes.isEmpty || maxEdge <= 0) return bytes;
 
+  ui.ImmutableBuffer? buffer;
   ui.ImageDescriptor? descriptor;
   ui.Codec? codec;
   ui.Image? image;
   try {
-    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     descriptor = await ui.ImageDescriptor.encoded(buffer);
 
     final width = descriptor.width;
@@ -133,5 +134,6 @@ Future<Uint8List> downscalePng(
     image?.dispose();
     codec?.dispose();
     descriptor?.dispose();
+    buffer?.dispose();
   }
 }

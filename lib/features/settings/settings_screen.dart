@@ -27,7 +27,8 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with WidgetsBindingObserver {
   _LoadState _accessibilityState = _LoadState.loading;
   bool _accessibilityEnabled = false;
 
@@ -39,7 +40,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.settings.addListener(_onSettingsChanged);
+    _refreshAccessibility();
+    _refreshTile();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // Coming back from the system accessibility / Quick Settings screens: the
+    // Intent resolves as soon as it is *started*, so this is the only reliable
+    // moment to re-read the real state.
     _refreshAccessibility();
     _refreshTile();
   }
@@ -59,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.settings.removeListener(_onSettingsChanged);
     super.dispose();
   }

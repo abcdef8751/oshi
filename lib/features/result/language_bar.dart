@@ -66,8 +66,8 @@ class LanguageBar extends StatelessWidget {
     );
   }
 
-  /// Source language is always auto; the segment is intentionally muted but
-  /// still tappable so it can explain itself.
+  /// Source language is always auto and can never be changed, so the segment
+  /// is rendered inert (the tooltip explains why).
   Widget _buildAutoSegment(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final muted = scheme.onSurfaceVariant.withValues(alpha: 0.55);
@@ -76,21 +76,11 @@ class LanguageBar extends StatelessWidget {
       message: 'Source is always auto-detected',
       child: TextButton.icon(
         key: const ValueKey<String>('language-bar-auto'),
-        onPressed: () {
-          final messenger = ScaffoldMessenger.maybeOf(context);
-          messenger
-            ?..hideCurrentSnackBar()
-            ..showSnackBar(
-              const SnackBar(
-                content: Text('Source is always auto-detected'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-        },
+        onPressed: null,
         icon: Icon(Icons.language_rounded, size: 18, color: muted),
         label: Text('Auto', style: TextStyle(color: muted)),
         style: TextButton.styleFrom(
-          foregroundColor: muted,
+          disabledForegroundColor: muted,
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
       ),

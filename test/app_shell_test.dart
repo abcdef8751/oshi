@@ -26,6 +26,7 @@ class FakeCaptureChannel extends CaptureChannel {
   int posted = 0;
   int cancelled = 0;
   int openedSettings = 0;
+  void Function()? captureAvailable;
 
   @override
   Future<bool> isAccessibilityEnabled() async => accessibility;
@@ -63,7 +64,9 @@ class FakeCaptureChannel extends CaptureChannel {
   }
 
   @override
-  void setCaptureAvailableHandler(void Function() handler) {}
+  void setCaptureAvailableHandler(void Function() handler) {
+    captureAvailable = handler;
+  }
 }
 
 class FakeTranslator implements Translator {
@@ -161,6 +164,21 @@ bool _useEnabled(WidgetTester tester) {
 void main() {
   late Directory tempDir;
   late String shotPath;
+  late List<MethodCall> clipboardCalls;
+
+  setUp(() {
+    clipboardCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') clipboardCalls.add(call);
+      return null;
+    });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
+  });
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -260,6 +278,71 @@ void main() {
     expect(find.text('Grab text from anywhere.'), findsOneWidget);
   });
 
+  testWidgets('notification callback pushes the crop screen while open',
+      (tester) async {
+    shotPath = await _writeTestPng(tester, tempDir);
+    final channel = FakeCaptureChannel();
+    await tester.pumpWidget(app(channel: channel));
+    await tester.pumpAndSettle();
+
+    // The notification/tile path: native queues a capture and invokes the
+    // channel callback, which must drain and open the overlay.
+    channel.pending = PendingCapture(path: shotPath);
+    channel.captureAvailable!();
+
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+    expect(find.text('Drag to select text'), findsOneWidget);
+  });
+
+  testWidgets('a second capture during the crop screen is not dropped',
+      (tester) async {
+    shotPath = await _writeTestPng(tester, tempDir);
+    final channel = FakeCaptureChannel();
+    await tester.pumpWidget(app(channel: channel));
+    await tester.pumpAndSettle();
+
+    channel.pending = PendingCapture(path: shotPath);
+    channel.captureAvailable!();
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+
+    // Second tap while the first crop is still on screen.
+    channel.pending = PendingCapture(path: shotPath);
+    channel.captureAvailable!();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Cancelling the first one lets the queued capture through.
+    await tester.tap(find.text('Cancel'));
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+    expect(find.text('Drag to select text'), findsOneWidget);
+  });
+
+  testWidgets('the ongoing notification is posted on launch when enabled',
+      (tester) async {
+    final channel = FakeCaptureChannel();
+    await tester.pumpWidget(app(channel: channel));
+    await tester.pumpAndSettle();
+    expect(channel.posted, 1);
+  });
+
+  testWidgets('the ongoing notification is not posted when disabled',
+      (tester) async {
+    final channel = FakeCaptureChannel();
+    await tester.pumpWidget(
+      app(channel: channel, settings: Settings.memory(notificationEnabled: false)),
+    );
+    await tester.pumpAndSettle();
+    expect(channel.posted, 0);
+  });
+
   testWidgets('pending capture -> crop -> default selection -> result sheet',
       (tester) async {
     shotPath = await _writeTestPng(tester, tempDir);
@@ -276,13 +359,22 @@ void main() {
 
     await tester.tap(find.text('Use'));
     await _pumpUntil(tester, () => find.text('Hello').evaluate().isNotEmpty);
+    // Let the modal sheet finish sliding in before tapping its actions.
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(translator.analyzeCalls, 1);
     expect(find.textContaining('detected:'), findsOneWidget);
 
-    // The sheet stays open after copying.
+    // Copying confirms inline and leaves the sheet open.
     await tester.tap(find.text('Copy'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(clipboardCalls, hasLength(1));
+    expect(
+      (clipboardCalls.single.arguments as Map<String, dynamic>)['text'],
+      'Hello',
+    );
+    expect(find.text('Copied'), findsOneWidget);
     expect(find.text('Hello'), findsOneWidget);
   });
 }

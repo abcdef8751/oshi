@@ -49,6 +49,10 @@ class _OshiAppState extends State<OshiApp>
   Settings? _settings;
   ScanResult? _lastResult;
 
+  /// Target language [_lastResult] was translated into, so reopening the sheet
+  /// doesn't relabel a stale translation.
+  String? _lastResultTargetCode;
+
   bool _accessibilityEnabled = false;
   bool _tileAdded = false;
   bool _loading = true;
@@ -73,11 +77,14 @@ class _OshiAppState extends State<OshiApp>
     _targetLanguage.value = languageForCode(settings.targetLangCode);
     setState(() => _settings = settings);
     await _refreshStatus();
-    await _drainPendingCapture();
+    if (!mounted) return;
     if (settings.notificationEnabled) {
       // Re-post the shade shortcut on every launch; harmless when already up.
       unawaited(_channel.postNotification().catchError((Object _) {}));
     }
+    // Drain before revealing the shell: a notification tap must not flash the
+    // home screen before the crop overlay.
+    await _drainPendingCapture();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -96,6 +103,11 @@ class _OshiAppState extends State<OshiApp>
     if (state == AppLifecycleState.resumed) {
       _refreshStatus();
       _drainPendingCapture();
+      // The user may have just granted POST_NOTIFICATIONS in system settings.
+      final settings = _settings;
+      if (settings != null && settings.notificationEnabled) {
+        unawaited(_channel.postNotification().catchError((Object _) {}));
+      }
     }
   }
 
@@ -110,14 +122,19 @@ class _OshiAppState extends State<OshiApp>
     if (_draining) return;
     _draining = true;
     try {
-      final pending = await _channel.getPendingCapture();
-      if (!mounted || pending.isEmpty) return;
-      if (pending.error != null) {
-        _showCaptureError(pending.error!);
-        return;
+      // Loop instead of `if`: a second capture taken while the crop screen or
+      // result sheet is open is queued natively and must not be dropped.
+      while (mounted) {
+        final pending = await _channel.getPendingCapture();
+        if (!mounted || pending.isEmpty) return;
+        if (pending.error != null) {
+          _showCaptureError(pending.error!);
+          return;
+        }
+        final path = pending.path;
+        if (path == null) return;
+        await _openCrop(path);
       }
-      final path = pending.path;
-      if (path != null) await _openCrop(path);
     } finally {
       _draining = false;
     }
@@ -159,7 +176,11 @@ class _OshiAppState extends State<OshiApp>
       targetLanguage: _targetLanguage,
       imagePng: png,
       onResult: (result) {
-        if (mounted) setState(() => _lastResult = result);
+        if (!mounted) return;
+        setState(() {
+          _lastResult = result;
+          _lastResultTargetCode = _targetLanguage.value.code;
+        });
       },
     );
   }
@@ -175,8 +196,13 @@ class _OshiAppState extends State<OshiApp>
       translator: translator,
       targetLanguage: _targetLanguage,
       initialResult: last,
+      initialTargetCode: _lastResultTargetCode,
       onResult: (result) {
-        if (mounted) setState(() => _lastResult = result);
+        if (!mounted) return;
+        setState(() {
+          _lastResult = result;
+          _lastResultTargetCode = _targetLanguage.value.code;
+        });
       },
     );
   }
@@ -346,6 +372,7 @@ class _HomeScreen extends StatelessWidget {
       body: RefreshIndicator(
         onRefresh: onRetryStatus,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             Text(

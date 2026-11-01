@@ -42,7 +42,9 @@ class _CropScreenState extends State<CropScreen> {
   /// Longest edge the screenshot is decoded at. Keeps very large captures
   /// (panoramas, high-DPI tablets) from blowing up memory; screenshots are
   /// normally well below this.
-  static const int _maxDecodeEdge = 2560;
+  /// Decode cap, above current phone resolutions (e.g. 1440x3200) so the crop
+  /// always works on real device pixels; only absurd inputs are resampled.
+  static const int _maxDecodeEdge = 4096;
 
   /// Hard cap for exported images, also when no upscale was requested.
   static const int _maxOutputEdge = 4096;
@@ -467,7 +469,10 @@ class _CropScreenState extends State<CropScreen> {
     final sourceWidth = right - left;
     final sourceHeight = bottom - top;
 
-    final upscale = sourceWidth < widget.upscaleThreshold ? 2 : 1;
+    final upscale = upscaleFactor(
+      sourceWidth.toDouble(),
+      threshold: widget.upscaleThreshold,
+    );
     var outputWidth = sourceWidth * upscale;
     var outputHeight = sourceHeight * upscale;
 
@@ -492,7 +497,8 @@ class _CropScreenState extends State<CropScreen> {
         sourceHeight.toDouble(),
       ),
       Rect.fromLTWH(0, 0, outputWidth.toDouble(), outputHeight.toDouble()),
-      Paint()..filterQuality = FilterQuality.medium,
+      // Cubic-ish resampling for the 2x OCR upscale.
+      Paint()..filterQuality = FilterQuality.high,
     );
 
     final picture = recorder.endRecording();

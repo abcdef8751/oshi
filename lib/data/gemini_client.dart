@@ -250,31 +250,16 @@ String _stripCodeFences(String raw) {
   var text = raw.trim();
   if (text.isEmpty) return text;
 
-  if (!text.startsWith('```')) {
-    // Commentary before the fence: keep the first fenced block.
-    final start = text.indexOf('```');
-    final end = text.lastIndexOf('```');
-    if (start > 0 && end > start) {
-      text = text.substring(start).trim();
-    } else {
-      return text;
-    }
-  }
+  var start = text.indexOf('```');
+  if (start < 0) return text;
 
-  // Drop the opening fence and an optional language tag on the same line.
-  var rest = text.substring(3);
-  final newline = rest.indexOf('\n');
-  if (newline >= 0) {
-    final firstLine = rest.substring(0, newline).trim();
-    if (RegExp(r'^[A-Za-z0-9_+-]*$').hasMatch(firstLine)) {
-      rest = rest.substring(newline + 1);
-    }
-  }
+  var rest = text.substring(start + 3);
+  // An optional language tag may follow on the same line or the next one.
+  rest = rest.replaceFirst(RegExp(r'^[A-Za-z0-9_+-]*\r?\n?'), '');
 
-  rest = rest.trimRight();
-  if (rest.endsWith('```')) {
-    rest = rest.substring(0, rest.length - 3);
-  }
+  // Cut at the closing fence when present; keep any trailing commentary out.
+  final end = rest.indexOf('```');
+  if (end >= 0) rest = rest.substring(0, end);
   return rest.trim();
 }
 

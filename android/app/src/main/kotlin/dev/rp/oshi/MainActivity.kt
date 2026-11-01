@@ -10,7 +10,23 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleCaptureIntent(intent)
+        // A restored task replays the original launch intent; the capture it
+        // points at is long consumed (and latest.png may hold a newer shot).
+        if (savedInstanceState == null) {
+            handleCaptureIntent(intent)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CaptureNotifications.PERMISSION_REQUEST_CODE) {
+            // Posting is a no-op if the user denied, so just try again.
+            CaptureNotifications.post(this, this)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

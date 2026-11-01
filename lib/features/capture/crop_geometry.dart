@@ -116,10 +116,12 @@ Rect resizeSelection({
 }
 
 /// Whether a crop of [cropWidth] image pixels is small enough to upscale 2x.
-bool shouldUpscale(double cropWidth) => cropWidth < 800;
+bool shouldUpscale(double cropWidth, {double threshold = 800}) =>
+    cropWidth < threshold;
 
 /// The upscale factor for a crop of [cropWidth] image pixels: 2 or 1.
-int upscaleFactor(double cropWidth) => shouldUpscale(cropWidth) ? 2 : 1;
+int upscaleFactor(double cropWidth, {double threshold = 800}) =>
+    shouldUpscale(cropWidth, threshold: threshold) ? 2 : 1;
 
 /// Maps between image pixels and viewport coordinates for a `BoxFit.contain`
 /// letterboxed image.

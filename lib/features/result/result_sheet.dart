@@ -20,6 +20,7 @@ Future<void> showResultSheet(
   required ValueNotifier<AppLanguage> targetLanguage,
   Uint8List? imagePng,
   ScanResult? initialResult,
+  String? initialTargetCode,
   ValueChanged<ScanResult>? onResult,
 }) async {
   assert(
@@ -39,6 +40,7 @@ Future<void> showResultSheet(
       targetLanguage: targetLanguage,
       imagePng: imagePng,
       initialResult: initialResult,
+      initialTargetCode: initialTargetCode,
       onResult: onResult,
     ),
   );
@@ -53,6 +55,7 @@ class ResultSheet extends StatefulWidget {
     required this.targetLanguage,
     this.imagePng,
     this.initialResult,
+    this.initialTargetCode,
     this.onResult,
   }) : assert(
          initialResult != null || imagePng != null,
@@ -63,6 +66,10 @@ class ResultSheet extends StatefulWidget {
   final ValueNotifier<AppLanguage> targetLanguage;
   final Uint8List? imagePng;
   final ScanResult? initialResult;
+
+  /// Language the cached [initialResult] was translated into. Without it the
+  /// sheet would assume the current target and show a stale translation.
+  final String? initialTargetCode;
   final ValueChanged<ScanResult>? onResult;
 
   @override
@@ -78,6 +85,8 @@ class _ResultSheetState extends State<ResultSheet> {
 
   ScanResult? _result;
   bool _analyzing = false;
+  bool _copied = false;
+  Timer? _copiedTimer;
   TranslatorException? _analyzeError;
 
   bool _busy = false;
@@ -97,8 +106,15 @@ class _ResultSheetState extends State<ResultSheet> {
     final initial = widget.initialResult;
     if (initial != null) {
       _result = initial;
-      _translationCache[_cacheKey(initial.originalText, _activeLanguage.code)] =
+      final cachedCode = widget.initialTargetCode ?? _activeLanguage.code;
+      _translationCache[_cacheKey(initial.originalText, cachedCode)] =
           initial.translation;
+      if (cachedCode != _activeLanguage.code) {
+        // The session cache is in another language than the one selected now.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_retranslate());
+        });
+      }
     } else {
       _analyzing = true;
       // Defer so a first frame with the progress state is guaranteed and we
@@ -125,6 +141,7 @@ class _ResultSheetState extends State<ResultSheet> {
 
   @override
   void dispose() {
+    _copiedTimer?.cancel();
     widget.targetLanguage.removeListener(_handleTargetLanguageChanged);
     super.dispose();
   }
@@ -240,10 +257,12 @@ class _ResultSheetState extends State<ResultSheet> {
       );
       if (!mounted || requestId != _requestId) return;
       _translationCache[key] = translation;
+      final updated = result.withTranslation(translation);
       setState(() {
         _busy = false;
-        _result = result.withTranslation(translation);
+        _result = updated;
       });
+      widget.onResult?.call(updated);
     } on TranslatorException catch (error) {
       if (!mounted || requestId != _requestId) return;
       setState(() {
@@ -290,12 +309,13 @@ class _ResultSheetState extends State<ResultSheet> {
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
 
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Copied'), duration: Duration(seconds: 2)),
-      );
+    // The app-level SnackBar would render underneath the modal sheet, so the
+    // confirmation lives on the button itself.
+    _copiedTimer?.cancel();
+    setState(() => _copied = true);
+    _copiedTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _copied = false);
+    });
   }
 
   void _closeSheet() {
@@ -448,6 +468,33 @@ class _ResultSheetState extends State<ResultSheet> {
 
     final text = _showingTranslation ? result.translation : result.originalText;
 
+    if (result.originalText.trim().isEmpty && text.trim().isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.search_off_rounded,
+                color: scheme.onSurfaceVariant, size: 32),
+            const SizedBox(height: 12),
+            Text(
+              'No text found in that selection',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try a tighter box around the text, or a larger one.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
       child: Container(
@@ -519,8 +566,11 @@ class _ResultSheetState extends State<ResultSheet> {
           TextButton.icon(
             key: const ValueKey<String>('result-copy'),
             onPressed: _copyCurrentVariant,
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('Copy'),
+            icon: Icon(
+              _copied ? Icons.check_rounded : Icons.copy_rounded,
+              size: 18,
+            ),
+            label: Text(_copied ? 'Copied' : 'Copy'),
           ),
           const Spacer(),
           if (!result.isTranslationIdentical)

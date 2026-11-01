@@ -1,18 +1,19 @@
 package dev.rp.oshi
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.StatusBarManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
-import android.view.accessibility.AccessibilityServiceInfo
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -117,11 +118,32 @@ class CaptureChannelHandler(
             )
             return
         }
+        // The callback is main-thread; a watchdog covers a service that dies
+        // between the call and the callback (otherwise Dart hangs forever).
+        var finished = false
+        val watchdog = Runnable {
+            if (finished) return@Runnable
+            finished = true
+            result.error(
+                CaptureErrorCodes.INTERNAL_ERROR,
+                "Screenshot timed out",
+                null,
+            )
+        }
+        mainHandler.postDelayed(watchdog, CAPTURE_TIMEOUT_MS)
         try {
             service.capture { outcome ->
                 // The service's executor is the main thread, but keep the channel
                 // contract explicit in case that ever changes.
                 runOnMain {
+                    if (finished) {
+                        if (outcome is CaptureAccessibilityService.CaptureResult.Success) {
+                            outcome.bitmap.recycle()
+                        }
+                        return@runOnMain
+                    }
+                    finished = true
+                    mainHandler.removeCallbacks(watchdog)
                     when (outcome) {
                         is CaptureAccessibilityService.CaptureResult.Success -> {
                             try {
@@ -146,6 +168,9 @@ class CaptureChannelHandler(
                 }
             }
         } catch (t: Throwable) {
+            if (finished) return
+            finished = true
+            mainHandler.removeCallbacks(watchdog)
             Log.e(TAG, "Could not start screenshot", t)
             result.error(
                 CaptureErrorCodes.INTERNAL_ERROR,
@@ -155,19 +180,18 @@ class CaptureChannelHandler(
         }
     }
 
-    private fun isTileAdded(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        return try {
-            val statusBarManager =
-                activity.getSystemService(Context.STATUS_BAR_SERVICE) as? StatusBarManager
-            statusBarManager?.isTileAdded == true
-        } catch (t: Throwable) {
-            Log.w(TAG, "Could not query tile state", t)
-            false
-        }
-    }
+    /**
+     * There is no public API to query whether a tile is added (`isTileAdded`
+     * is hidden), so [CaptureTileService] records it in [TileState] from its
+     * own `onTileAdded` / `onTileRemoved` callbacks.
+     */
+    private fun isTileAdded(): Boolean = TileState.isAdded(activity)
 
     private fun openTileSettings(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && requestTileAdd()) {
+            result.success(null)
+            return
+        }
         try {
             activity.startActivity(
                 Intent(ACTION_QUICK_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -186,6 +210,34 @@ class CaptureChannelHandler(
         } catch (t: Throwable) {
             Log.e(TAG, "Could not open quick settings", t)
             result.error(CaptureErrorCodes.INTERNAL_ERROR, t.message, null)
+        }
+    }
+
+    /**
+     * API 33+ can ask the system to add the tile directly, which is one tap
+     * instead of opening the Quick Settings editor.
+     */
+    private fun requestTileAdd(): Boolean {
+        return try {
+            val statusBarManager =
+                activity.getSystemService(Context.STATUS_BAR_SERVICE) as? StatusBarManager
+                    ?: return false
+            statusBarManager.requestAddTileService(
+                ComponentName(activity, CaptureTileService::class.java),
+                activity.getString(R.string.tile_label),
+                Icon.createWithResource(activity, R.drawable.ic_tile),
+                activity.mainExecutor,
+            ) { code ->
+                if (code == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+                    code == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+                ) {
+                    TileState.setAdded(activity, true)
+                }
+            }
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not request the tile be added", t)
+            false
         }
     }
 
@@ -217,5 +269,6 @@ class CaptureChannelHandler(
         const val CHANNEL_NAME = "oshi/capture"
         const val METHOD_CAPTURE_AVAILABLE = "onCaptureAvailable"
         const val ACTION_QUICK_SETTINGS = "android.settings.QUICK_SETTINGS"
+        const val CAPTURE_TIMEOUT_MS = 3_000L
     }
 }

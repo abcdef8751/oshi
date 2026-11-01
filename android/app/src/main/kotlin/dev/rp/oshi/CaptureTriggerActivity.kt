@@ -26,6 +26,9 @@ class CaptureTriggerActivity : Activity() {
 
     private val captureRunnable = Runnable { attemptCapture() }
 
+    /** Fires if the screenshot callback never arrives (service torn down mid-call). */
+    private val watchdog = Runnable { finishWithError(CaptureErrorCodes.INTERNAL_ERROR) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         scheduleCapture()
@@ -57,6 +60,8 @@ class CaptureTriggerActivity : Activity() {
             finishWithError(CaptureErrorCodes.NO_ACCESSIBILITY_ACCESS)
             return
         }
+        handler.removeCallbacks(watchdog)
+        handler.postDelayed(watchdog, CAPTURE_TIMEOUT_MS)
         try {
             service.capture { outcome -> handleCaptureResult(outcome) }
         } catch (t: Throwable) {
@@ -66,6 +71,7 @@ class CaptureTriggerActivity : Activity() {
     }
 
     private fun handleCaptureResult(outcome: CaptureAccessibilityService.CaptureResult) {
+        handler.removeCallbacks(watchdog)
         if (destroyed) {
             if (outcome is CaptureAccessibilityService.CaptureResult.Success) {
                 outcome.bitmap.recycle()
@@ -87,19 +93,26 @@ class CaptureTriggerActivity : Activity() {
     }
 
     private fun saveAndLaunch(bitmap: Bitmap) {
-        val file = try {
-            ScreenshotStore.writeLatest(cacheDir, bitmap)
-        } catch (t: Throwable) {
-            Log.e(TAG, "Could not write capture", t)
-            null
-        } finally {
-            bitmap.recycle()
-        }
-        if (file == null) {
-            finishWithError(CaptureErrorCodes.INTERNAL_ERROR)
-        } else {
-            launchMainActivity(path = file.absolutePath, error = null)
-        }
+        // A full-screen PNG encode takes long enough to stall the main thread;
+        // do it on a worker so the app opens immediately.
+        Thread {
+            val file = try {
+                ScreenshotStore.writeLatest(cacheDir, bitmap)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Could not write capture", t)
+                null
+            } finally {
+                bitmap.recycle()
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                if (file == null) {
+                    finishWithError(CaptureErrorCodes.INTERNAL_ERROR)
+                } else {
+                    launchMainActivity(path = file.absolutePath, error = null)
+                }
+            }
+        }.start()
     }
 
     private fun finishWithError(code: String) {
@@ -108,7 +121,11 @@ class CaptureTriggerActivity : Activity() {
 
     private fun launchMainActivity(path: String?, error: String?) {
         val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
+            )
             if (path != null) putExtra(CapturePending.EXTRA_CAPTURE_PATH, path)
             if (error != null) putExtra(CapturePending.EXTRA_CAPTURE_ERROR, error)
         }
@@ -132,5 +149,8 @@ class CaptureTriggerActivity : Activity() {
          * is free of it. Tune this on the target device first.
          */
         private const val SHADE_COLLAPSE_DELAY_MS = 400L
+
+        /** If the capture callback never lands, fail instead of hanging invisible. */
+        private const val CAPTURE_TIMEOUT_MS = 3_000L
     }
 }
