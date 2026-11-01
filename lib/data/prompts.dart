@@ -34,6 +34,17 @@ String buildTranslatePrompt({
       'Output only the translation.';
 }
 
+/// Caps how much the model is allowed to "think" before answering.
+///
+/// Neither call needs reasoning: one reads pixels, the other rewrites a
+/// sentence. Left unset the budget is dynamic — the same OCR prompt that costs
+/// ~1.5k tokens with no thinking can occasionally spend 12k thought tokens and
+/// 30s+ on one capture. Pinning it to `minimal` keeps cost and latency
+/// predictable without changing the transcription.
+const Map<String, dynamic> kThinkingConfig = <String, dynamic>{
+  'thinkingLevel': 'minimal',
+};
+
 /// JSON schema for the analyze call, selected by `responseMimeType:
 /// application/json`. Gemini's REST API expects the OpenAPI-style `OBJECT` /
 /// `STRING` spelling, not JSON-Schema lowercase types.

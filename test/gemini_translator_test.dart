@@ -126,6 +126,7 @@ void main() {
       expect(config['temperature'], 0.1);
       expect(config['responseMimeType'], 'application/json');
       expect(config['responseSchema'], kAnalyzeResponseSchema);
+      expect(config['thinkingConfig'], kThinkingConfig);
     });
 
     test('sends the API key in the header only, never the body', () async {
@@ -300,6 +301,9 @@ void main() {
         expect(config['temperature'], 0.1);
         expect(config.containsKey('responseSchema'), isFalse);
         expect(config.containsKey('responseMimeType'), isFalse);
+        // Reasoning is pinned off for this call too: translating a cached
+        // transcription never benefits from a thinking budget.
+        expect(config['thinkingConfig'], kThinkingConfig);
       },
     );
 

@@ -62,6 +62,7 @@ class GeminiFlashLiteTranslator implements Translator {
         'temperature': 0.1,
         'responseMimeType': 'application/json',
         'responseSchema': kAnalyzeResponseSchema,
+        'thinkingConfig': kThinkingConfig,
       },
     );
     return parseScanResult(extractCandidateText(envelope));
@@ -81,7 +82,10 @@ class GeminiFlashLiteTranslator implements Translator {
       parts: <Map<String, dynamic>>[
         <String, dynamic>{'text': '$prompt\n\n$originalText'},
       ],
-      generationConfig: <String, dynamic>{'temperature': 0.1},
+      generationConfig: <String, dynamic>{
+        'temperature': 0.1,
+        'thinkingConfig': kThinkingConfig,
+      },
     );
     return extractCandidateText(envelope).trim();
   }
