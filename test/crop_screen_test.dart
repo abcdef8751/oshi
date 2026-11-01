@@ -230,6 +230,39 @@ void main() {
     expect(use.onPressed, isNotNull);
   });
 
+  testWidgets('wide crops export at image resolution without upscaling', (
+    tester,
+  ) async {
+    final file = await _writeScreenshot(tester, width: 2000, height: 1000);
+
+    Uint8List? popped;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _CropLauncher(
+          path: file.path,
+          onResult: (bytes) => popped = bytes,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open crop'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await _pumpUntil(
+      tester,
+      () => find.text('Drag to select text').evaluate().isNotEmpty,
+    );
+
+    // Default selection is 640x400 logical px of an 800x400 drawn image; at
+    // scale 2.5 that is 1600x1000 image px, i.e. wider than the 800 px
+    // upscale threshold, so the export keeps its resolution.
+    await tester.tap(find.text('Use'));
+    await _pumpUntil(tester, () => popped != null);
+
+    final decoded = await _decodeSize(tester, popped!);
+    expect(decoded.width, 1600);
+    expect(decoded.height, 1000);
+  });
+
   testWidgets('rotation keeps a valid selection and does not throw', (
     tester,
   ) async {
